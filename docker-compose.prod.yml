@@ -1,0 +1,87 @@
+services:
+  postgres:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'    # Reserve 1 core for DB operations
+          memory: 1G      # Limit memory to 1GB to prevent OOM on host
+
+  pgbouncer:
+    restart: always
+    # Lightweight connection pooler, usually doesn't need strict limits but good for predictability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  backend:
+    build:
+      target: production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'    # Limit API processing to half core
+          memory: 512M   # 512MB is plenty for a FastAPI app unless handling large uploads in-memory
+
+  frontend:
+    build:
+      target: production
+    env_file:
+      - ./.env
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G     # 1GB for build/serve process
+
+  nginx:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  redis:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M   # Redis is usually very efficient with memory
+
+  n8n:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
+  n8n-worker:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'    # Workers need more CPU for workflow execution
+          memory: 2G     # Workflows can be memory-intensive
+
+  flowise:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
+  flowise-worker:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'    # Heavy LLM processing/orchestration
+          memory: 2G

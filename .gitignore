@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+data/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Node.js (Frontend)
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+!frontend/src/lib/
+
+# Environment
+.env
+*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Project specific temporary/debug files
+debug_n8n_agent_selection.png
+result.txt
+n8n y flowise prueba.txt
+!requirements.txt
+!backend/requirements.txt
+!requirements-dev.txt
+!github_backup_instructions.txt
+
+# Docker
+.dockerignore
+postgres_data/
+# Do not ignore Dockerfile or docker-compose.yml as they are part of the infra
+
+# Prisma
+# We want schema.prisma, but maybe not binaries if they are generated locally
+# For prisma-python, the client is generated into site-packages or a specific folder
+# If we use a custom output, we ignore it here.
+.env
+
+# Gemini CLI
+.gemini/
+
+# Storage
+backend/storage/
+!backend/storage/.gitkeep
+
+# Frontend Build Artifacts
+frontend/coverage/
