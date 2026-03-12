@@ -4,7 +4,7 @@
  * See LICENSE.md in the project root for more information.
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useReducer } from "react"
 import { Search, Tag, Trash2, Plus, Loader2 } from "lucide-react"
 import {
   Table,
@@ -19,112 +19,73 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getTagColor, cn } from "@/lib/utils"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import useUI from "../../hooks/useUI"
+import { useTags, useTagsMutation } from "../../hooks/useTags"
+
+const initialState = {
+  searchQuery: "",
+  newTagName: "",
+};
+
+function tagManagementReducer(state, action) {
+  switch (action.type) {
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.payload };
+    case 'SET_NEW_TAG_NAME':
+      return { ...state, newTagName: action.payload };
+    case 'RESET_FORM':
+      return { ...state, newTagName: "" };
+    default:
+      return state;
+  }
+}
 
 /**
  * TagManagement component for viewing and managing global system tags.
- * @returns {JSX.Element}
+ * Refactored: useReducer + TanStack Query.
  */
 export function TagManagement() {
   const ui = useUI()
-  const [tags, setTags] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [newTagName, setNewTagName] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
+  const [state, dispatch] = useReducer(tagManagementReducer, initialState);
 
-  useEffect(() => {
-    fetchTags()
-  }, [])
+  // Queries & Mutations
+  const { data: tags = [], isLoading } = useTags();
+  const { createMutation, deleteMutation } = useTagsMutation();
 
-  const fetchTags = async () => {
-    setIsLoading(true)
-    try {
-      const token = localStorage.getItem("access_token")
-      const response = await fetch("/api/v1/tags", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setTags(data)
-      }
-    } catch (error) {
-      console.error("Error fetching tags:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleCreateTag = async (e) => {
+  const handleCreateTag = (e) => {
     e.preventDefault()
-    if (!newTagName.trim()) return
+    if (!state.newTagName.trim()) return
 
-    setIsCreating(true)
-    try {
-      const token = localStorage.getItem("access_token")
-      const response = await fetch("/api/v1/tags", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: newTagName.trim().toLowerCase() }),
-      })
-
-      if (response.ok) {
-        ui.toast.success(`Tag "${newTagName}" created successfully`)
-        setNewTagName("")
-        fetchTags()
-      } else {
-        const data = await response.json()
-        ui.toast.error(data.detail || "Error creating tag")
+    createMutation.mutate(state.newTagName, {
+      onSuccess: () => {
+        ui.toast.success(`Etiqueta "${state.newTagName}" creada exitosamente`)
+        dispatch({ type: 'RESET_FORM' })
+      },
+      onError: (err) => {
+        ui.toast.error("Error al crear la etiqueta")
       }
-    } catch (error) {
-      console.error("Error creating tag:", error)
-      ui.toast.error("Connection error")
-    } finally {
-      setIsCreating(false)
-    }
+    });
   }
 
-  const handleDeleteTag = async (tag) => {
+  const handleDeleteTag = (tag) => {
     ui.confirm(
-      "Delete Tag",
-      `Are you sure you want to delete the tag "${tag.name}"? This might affect users and agents associated with it.`,
+      "Eliminar Etiqueta",
+      `¿Estás seguro de que deseas eliminar la etiqueta "${tag.name}"? Esto podría afectar a usuarios y agentes asociados.`,
       async () => {
-        try {
-          const token = localStorage.getItem("access_token")
-          const response = await fetch(`/api/v1/tags/${tag.id}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          })
-          if (response.ok) {
-            ui.toast.success(`Tag "${tag.name}" deleted successfully`)
-            fetchTags()
-          } else {
-            const data = await response.json()
-            ui.toast.error(data.detail || "Error deleting tag")
+        deleteMutation.mutate(tag.id, {
+          onSuccess: () => {
+            ui.toast.success(`Etiqueta "${tag.name}" eliminada exitosamente`)
+          },
+          onError: () => {
+            ui.toast.error("Error al eliminar la etiqueta")
           }
-        } catch (error) {
-          console.error("Error deleting tag:", error)
-          ui.toast.error("Connection error")
-        }
+        });
       }
     )
   }
 
   const filteredTags = tags.filter((tag) =>
-    tag.name.toLowerCase().includes(searchQuery.toLowerCase())
+    tag.name.toLowerCase().includes(state.searchQuery.toLowerCase())
   )
 
   return (
@@ -133,25 +94,25 @@ export function TagManagement() {
         <div className="relative flex-1 w-full max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search tags..."
+            placeholder="Buscar etiquetas..."
             className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={state.searchQuery}
+            onChange={(e) => dispatch({ type: 'SET_SEARCH_QUERY', payload: e.target.value })}
             autoComplete="off"
           />
         </div>
 
         <form onSubmit={handleCreateTag} className="flex items-center gap-2 w-full sm:w-auto">
           <Input
-            placeholder="New tag name..."
-            value={newTagName}
-            onChange={(e) => setNewTagName(e.target.value)}
+            placeholder="Nueva etiqueta..."
+            value={state.newTagName}
+            onChange={(e) => dispatch({ type: 'SET_NEW_TAG_NAME', payload: e.target.value })}
             className="h-9"
             autoComplete="off"
           />
-          <Button type="submit" size="sm" disabled={isCreating || !newTagName.trim()} className="shrink-0">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Tag
+          <Button type="submit" size="sm" disabled={createMutation.isPending || !state.newTagName.trim()} className="shrink-0">
+            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+            Añadir Etiqueta
           </Button>
         </form>
       </div>
@@ -160,9 +121,9 @@ export function TagManagement() {
         <Table>
           <TableHeader className="bg-secondary sticky top-0 z-10">
             <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="w-[300px] text-[10px] 3xl:text-xs font-bold uppercase tracking-wider text-muted-foreground/50 py-3 pl-6">Tag Name</TableHead>
-              <TableHead className="text-[10px] 3xl:text-xs font-bold uppercase tracking-wider text-muted-foreground/50 py-3 px-6">Type</TableHead>
-              <TableHead className="text-right text-[10px] 3xl:text-xs font-bold uppercase tracking-wider text-muted-foreground/50 py-3 pr-6">Actions</TableHead>
+              <TableHead className="w-[300px] text-[10px] 3xl:text-xs font-bold uppercase tracking-wider text-muted-foreground/50 py-3 pl-6">Nombre de Etiqueta</TableHead>
+              <TableHead className="text-[10px] 3xl:text-xs font-bold uppercase tracking-wider text-muted-foreground/50 py-3 px-6">Tipo</TableHead>
+              <TableHead className="text-right text-[10px] 3xl:text-xs font-bold uppercase tracking-wider text-muted-foreground/50 py-3 pr-6">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -171,19 +132,19 @@ export function TagManagement() {
                 <TableCell colSpan={3} className="h-24 text-center px-6">
                   <div className="flex items-center justify-center gap-2 text-muted-foreground/50">
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>Loading tags...</span>
+                    <span>Cargando etiquetas...</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : filteredTags.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={3} className="h-24 text-center px-6">
-                  No tags found.
+                  No se encontraron etiquetas.
                 </TableCell>
               </TableRow>
             ) : (
               filteredTags.map((tag) => (
-                <TableRow key={tag.id}>
+                <TableRow key={tag.id} className="group/row">
                   <TableCell className="font-medium pl-6">
                     <div className="flex items-center gap-2">
                       <Tag className="h-3 w-3 text-muted-foreground" />
@@ -204,14 +165,21 @@ export function TagManagement() {
                     <span className="text-xs text-muted-foreground capitalize">Global</span>
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDeleteTag(tag)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end opacity-0 group-hover/row:opacity-100 transition-opacity">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteTag(tag)}
+                        disabled={deleteMutation.isPending && deleteMutation.variables === tag.id}
+                      >
+                        {deleteMutation.isPending && deleteMutation.variables === tag.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

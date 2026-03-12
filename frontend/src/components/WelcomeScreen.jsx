@@ -4,7 +4,7 @@
  * See LICENSE.md in the project root for more information.
  */
 
-import React, { useEffect, useState, useMemo } from "react"
+import React, { useState, useMemo } from "react"
 import { Card, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Input } from "./ui/input"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import { Search } from "lucide-react"
 import logoSvg from "../assets/branding/avatar_logo.svg"
 import fireSvg from "../assets/branding/fire.svg"
 import { AgentCard } from "./AgentCard"
+import { useAgents } from "../hooks/useAgents"
 
 const WelcomeHeader = ({ user, isManyAgents, searchQuery, setSearchQuery, integrated = false }) => (
   <div className={cn(
@@ -52,54 +53,19 @@ const WelcomeHeader = ({ user, isManyAgents, searchQuery, setSearchQuery, integr
 );
 
 export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
-  const [agents, setAgents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
-
-  useEffect(() => {
-    const fetchAgents = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const token = localStorage.getItem("access_token")
-        if (!token) {
-          throw new Error("No access token found. Please log in.")
-        }
-
-        const response = await fetch("/api/v1/agents", {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.detail || "Failed to fetch agents")
-        }
-
-        const data = await response.json()
-        
-        // Reorder agents: selectedAgentId comes first
-        const sortedData = [...data].sort((a, b) => {
-          if (String(a.id) === selectedAgentId) return -1;
-          if (String(b.id) === selectedAgentId) return 1;
-          return 0;
-        });
-
-        setAgents(sortedData)
-      } catch (err) {
-        console.error("Error fetching agents:", err)
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+  
+  const { data: agents = [], isLoading, error } = useAgents({
+    enabled: !!user?.id,
+    select: (data) => {
+      // Reorder agents: selectedAgentId comes first
+      return [...data].sort((a, b) => {
+        if (String(a.id) === selectedAgentId) return -1;
+        if (String(b.id) === selectedAgentId) return 1;
+        return 0;
+      });
     }
-
-    if (user && user.id) {
-      fetchAgents()
-    }
-  }, [user, selectedAgentId])
+  })
 
   const filteredAgents = useMemo(() => {
     return agents.filter(agent => 
@@ -147,7 +113,7 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
             />
           )}
 
-          {loading ? (
+          {isLoading ? (
             <div className="flex justify-center items-center py-12" aria-busy="true" aria-label="Loading assistants">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
             </div>
@@ -155,7 +121,7 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
             <Card className="border-destructive/20 bg-destructive/5 max-w-md mx-auto" role="alert">
               <CardHeader className="text-center p-4">
                 <CardTitle className="text-destructive text-sm font-bold">Connection Error</CardTitle>
-                <CardDescription className="text-xs">{error}</CardDescription>
+                <CardDescription className="text-xs">{error.message || "Failed to fetch agents"}</CardDescription>
               </CardHeader>
             </Card>
           ) : (
@@ -176,7 +142,7 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
                   />
                 </div>
               ))}
-              {!loading && filteredAgents.length === 0 && (
+              {!isLoading && filteredAgents.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 space-y-2 w-full" role="status">
                   <p className="text-muted-foreground text-sm italic">
                     No se encontraron asistentes que coincidan con "{searchQuery}"

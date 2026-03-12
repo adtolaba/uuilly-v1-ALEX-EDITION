@@ -50,6 +50,9 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       PUBLIC_SERVER_URL: ${PUBLIC_SERVER_URL}
       INTERNAL_SERVER_URL: ${INTERNAL_SERVER_URL}
+    volumes:
+      - ./backend:/app
+      - ./tests:/app/tests
     env_file:
       - ./.env
     depends_on:
@@ -61,8 +64,8 @@ services:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
       interval: 10s
       timeout: 10s
-      retries: 10
-      start_period: 40s
+      retries: 5
+      start_period: 60s
 
   frontend:
     build:
@@ -117,7 +120,15 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n/templates/Uuilly_Starter_Template_n8n.json:/home/node/Uuilly_Starter_Template_n8n.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     depends_on:
+      backend:
+        condition: service_healthy
       pgbouncer:
         condition: service_started
       redis:
@@ -145,7 +156,7 @@ services:
       - n8n_data:/home/node/.n8n
     depends_on:
       n8n:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -168,7 +179,15 @@ services:
       - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
     volumes:
       - flowise_data:/root/.flowise
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3001/ || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     depends_on:
+      backend:
+        condition: service_healthy
       pgbouncer:
         condition: service_started
       redis:
@@ -200,7 +219,7 @@ services:
       start_period: 30s
     depends_on:
       flowise:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:

@@ -4,8 +4,8 @@
  * See LICENSE.md in the project root for more information.
  */
 
-import React, { useState, useEffect } from 'react'
-import { Filter, User, Bot, BrainCircuit, X, Loader2 } from 'lucide-react'
+import React, { useState } from 'react'
+import { Filter, User, Bot, BrainCircuit, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,9 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { useUsers } from '../../hooks/useUsers'
 
 /**
  * AdvancedSearchModal component for granular memory filtering.
+ * Refactored: useEffect removed, uses TanStack Query + Key Pattern for reset.
  */
 export function AdvancedSearchModal({ 
   agents, 
@@ -34,46 +36,18 @@ export function AdvancedSearchModal({
   currentFilters
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [users, setUsers] = useState([])
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   
-  // Local state for the modal fields
+  // Local state for the modal fields - initialized from currentFilters
   const [localFilters, setLocalFilters] = useState({
-    agentId: 'all',
-    userId: 'all',
-    memoryType: 'all',
-    ...currentFilters
+    agentId: currentFilters.agentId || 'all',
+    userId: currentFilters.userId || 'all',
+    memoryType: currentFilters.memoryType || 'all'
   })
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchUsers()
-      // Sync with parent when opening
-      setLocalFilters({
-        agentId: currentFilters.agentId || 'all',
-        userId: currentFilters.userId || 'all',
-        memoryType: currentFilters.memoryType || 'all'
-      })
-    }
-  }, [isOpen, currentFilters])
-
-  const fetchUsers = async () => {
-    setIsLoadingUsers(true)
-    try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch('/api/v1/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setUsers(data)
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error)
-    } finally {
-      setIsLoadingUsers(false)
-    }
-  }
+  // Fetch users via React Query
+  const { data: users = [], isLoading: isLoadingUsers } = useUsers({
+    enabled: isOpen // Only fetch when modal opens
+  });
 
   const handleApply = () => {
     onFilterChange(localFilters)
@@ -98,8 +72,8 @@ export function AdvancedSearchModal({
       <DialogTrigger asChild>
         <Button variant='outline' size='sm' className='h-9 gap-2 relative'>
           <Filter className='h-4 w-4' />
-          <span className='hidden sm:inline'>Advanced Search</span>
-          <span className='sm:hidden'>Filter</span>
+          <span className='hidden sm:inline'>Búsqueda Avanzada</span>
+          <span className='sm:hidden'>Filtrar</span>
           {activeFiltersCount > 0 && (
             <Badge variant='default' className='ml-1 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]'>
               {activeFiltersCount}
@@ -111,10 +85,10 @@ export function AdvancedSearchModal({
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <BrainCircuit className='h-5 w-5 text-primary' />
-            Advanced Memory Search
+            Búsqueda Avanzada de Memoria
           </DialogTitle>
           <DialogDescription className='text-xs'>
-            Search for atomic facts across users, agents, and memory types.
+            Busca hechos atómicos a través de usuarios, agentes y tipos de memoria.
           </DialogDescription>
         </DialogHeader>
 
@@ -123,17 +97,17 @@ export function AdvancedSearchModal({
           <div className='space-y-2'>
             <label className='text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2'>
               <Bot className='h-3.5 w-3.5' />
-              Filter by AI Agent
+              Filtrar por Agente
             </label>
             <Select 
               value={localFilters.agentId} 
               onValueChange={(val) => setLocalFilters({...localFilters, agentId: val})}
             >
               <SelectTrigger className='h-10 text-sm'>
-                <SelectValue placeholder='All Agents' />
+                <SelectValue placeholder='Todos los agentes' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='all'>All Agents</SelectItem>
+                <SelectItem value='all'>Todos los agentes</SelectItem>
                 {agents.map(a => (
                   <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>
                 ))}
@@ -145,7 +119,7 @@ export function AdvancedSearchModal({
           <div className='space-y-2'>
             <label className='text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2'>
               <User className='h-3.5 w-3.5' />
-              Filter by User
+              Filtrar por Usuario
             </label>
             <Select 
               value={localFilters.userId} 
@@ -156,14 +130,14 @@ export function AdvancedSearchModal({
                 {isLoadingUsers ? (
                   <div className='flex items-center gap-2'>
                     <Loader2 className='h-3.5 w-3.5 animate-spin' />
-                    <span>Loading users...</span>
+                    <span>Cargando usuarios...</span>
                   </div>
                 ) : (
-                  <SelectValue placeholder='All Users' />
+                  <SelectValue placeholder='Todos los usuarios' />
                 )}
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='all'>All Users</SelectItem>
+                <SelectItem value='all'>Todos los usuarios</SelectItem>
                 {users.map(u => (
                   <SelectItem key={u.id} value={u.id.toString()}>
                     {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u.email}
@@ -178,7 +152,7 @@ export function AdvancedSearchModal({
           <div className='space-y-2'>
             <label className='text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2'>
               <Filter className='h-3.5 w-3.5' />
-              Memory Type
+              Tipo de Memoria
             </label>
             <div className='flex gap-2'>
               <Button 
@@ -186,7 +160,7 @@ export function AdvancedSearchModal({
                 className='flex-1 h-10 text-xs'
                 onClick={() => setLocalFilters({...localFilters, memoryType: 'all'})}
               >
-                All
+                Todos
               </Button>
               <Button 
                 variant={localFilters.memoryType === 'global' ? 'default' : 'outline'} 
@@ -200,7 +174,7 @@ export function AdvancedSearchModal({
                 className='flex-1 h-10 text-xs'
                 onClick={() => setLocalFilters({...localFilters, memoryType: 'private'})}
               >
-                Private
+                Privada
               </Button>
             </div>
           </div>
@@ -208,10 +182,10 @@ export function AdvancedSearchModal({
 
         <DialogFooter className='gap-2 sm:gap-0'>
           <Button variant='ghost' className='text-xs' onClick={handleReset}>
-            Reset Filters
+            Restablecer Filtros
           </Button>
           <Button onClick={handleApply}>
-            Search Memories
+            Buscar Recuerdos
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,156 +8,66 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Loader2, RefreshCw, Save, Key, Plus } from "lucide-react"
+import { Loader2, RefreshCw, Save, Key } from "lucide-react"
 import useUI from "@/hooks/useUI"
 import { normalizeProvider } from "@/lib/utils"
+import { useSettings, useSettingsMutation, useModels } from "../../hooks/useSettings"
+import { useAICredentials } from "../../hooks/useAICredentials"
 
 /**
  * AutoTitlesSettings component for managing automatic conversation titling.
- * Refactored to use centralized AI Credentials.
+ * Refactored to use TanStack Query.
  */
 export function AutoTitlesSettings() {
   const { toast } = useUI()
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [fetchingModels, setFetchingModels] = useState(false)
-  const [availableModels, setAvailableModels] = useState([])
-  const [aicredentials, setAiCredentials] = useState([])
   
-  const [settings, setSettings] = useState({
-    is_titling_enabled: false,
-    llm_provider: 'openai',
-    llm_model: '',
-    llm_api_key: '', // Legacy API Key (masked)
-    titling_prompt: ''
-  })
+  // Queries
+  const { data: settings, isLoading: loadingSettings } = useSettings();
+  const { data: aicredentials = [], isLoading: loadingCreds } = useAICredentials();
+  
+  // Local state for form (initialized from settings in useEffect)
+  const [formState, setFormState] = useState(null);
 
   useEffect(() => {
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
-    try {
-      setLoading(true)
-      const token = localStorage.getItem('access_token')
-      
-      const [settingsRes, credsRes] = await Promise.all([
-        fetch('/api/v1/settings', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/v1/ai-credentials', { headers: { 'Authorization': `Bearer ${token}` } })
-      ])
-
-      let settingsData = null
-      let credsData = []
-
-      if (settingsRes.ok) {
-        settingsData = await settingsRes.json()
-        setSettings(settingsData)
-      }
-
-      if (credsRes.ok) {
-        credsData = await credsRes.json()
-        setAiCredentials(credsData)
-      }
-
-      // Logic for initial model fetching
-      if (settingsData && credsData.length > 0) {
-        const provider = settingsData.llm_provider
-        const filtered = credsData.filter(c => {
-          const tasks = typeof c.tasks === 'string' ? JSON.parse(c.tasks) : c.tasks
-          const mappedProvider = normalizeProvider(provider)
-          return tasks.includes('titling') && c.provider === mappedProvider
-        })
-        
-        // Prioritize explicit active_cred_id, fallback to first matching cred
-        const targetCredId = settingsData.active_cred_id || (filtered.length > 0 ? filtered[0].id : null);
-        
-        if (targetCredId) {
-          fetchModels(provider, targetCredId)
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching settings:', error)
-      toast.error('Failed to load settings')
-    } finally {
-      setLoading(false)
+    if (settings && !formState) {
+      setFormState(settings);
     }
+  }, [settings, formState]);
+
+  // Models Query
+  const provider = formState?.llm_provider;
+  const targetCredId = formState?.active_cred_id || null;
+  const { 
+    data: availableModels = [], 
+    isLoading: fetchingModels,
+    refetch: refetchModels 
+  } = useModels(provider, targetCredId);
+
+  // Mutations
+  const { updateMutation, resetPromptMutation } = useSettingsMutation();
+
+  const handleSave = () => {
+    updateMutation.mutate(formState, {
+      onSuccess: (updated) => {
+        setFormState(updated);
+        toast.success('Configuración guardada exitosamente');
+      },
+      onError: () => toast.error('Error al guardar la configuración')
+    });
   }
 
-  const fetchModels = async (provider, credId = null) => {
-    if (!provider) {
-      setAvailableModels([])
-      return
-    }
-    try {
-      setFetchingModels(true)
-      const token = localStorage.getItem('access_token')
-      let url = `/api/v1/settings/models?provider=${provider}`
-      if (credId) url += `&credential_id=${credId}`
-      
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const models = await response.json()
-        setAvailableModels(Array.isArray(models) ? models : [])
-      } else {
-        setAvailableModels([])
-      }
-    } catch (error) {
-      console.error('Error fetching models:', error)
-      setAvailableModels([])
-    } finally {
-      setFetchingModels(false)
-    }
+  const handleResetPrompt = () => {
+    resetPromptMutation.mutate(null, {
+      onSuccess: (updated) => {
+        setFormState(prev => ({ ...prev, titling_prompt: updated.titling_prompt }));
+        toast.success('Prompt restablecido');
+      },
+      onError: () => toast.error('Error al restablecer el prompt')
+    });
   }
 
-  const handleSave = async () => {
-    try {
-      setSaving(true)
-      const token = localStorage.getItem('access_token')
-      const response = await fetch('/api/v1/settings', {
-        method: 'PUT',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(settings)
-      })
-      if (response.ok) {
-        toast.success('Settings updated successfully')
-        const updated = await response.json()
-        setSettings(updated)
-      } else {
-        toast.error('Failed to update settings')
-      }
-    } catch (error) {
-      console.error('Error saving settings:', error)
-      toast.error('Error saving settings')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleResetPrompt = async () => {
-    try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch('/api/v1/settings/reset-prompt', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const updated = await response.json()
-        setSettings(prev => ({ ...prev, titling_prompt: updated.titling_prompt }))
-        toast.success('Prompt reset to default')
-      }
-    } catch (error) {
-      toast.error('Failed to reset prompt')
-    }
-  }
-
-  if (loading) {
+  if (loadingSettings || loadingCreds || !formState) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -168,7 +78,7 @@ export function AutoTitlesSettings() {
   // Filter credentials that support titling and match the current provider
   const filteredCreds = aicredentials.filter(c => {
     const tasks = typeof c.tasks === 'string' ? JSON.parse(c.tasks) : c.tasks
-    const mappedProvider = normalizeProvider(settings.llm_provider)
+    const mappedProvider = normalizeProvider(formState.llm_provider)
     return tasks.includes('titling') && c.provider === mappedProvider
   })
 
@@ -176,34 +86,32 @@ export function AutoTitlesSettings() {
     <div className="space-y-6">
       <Card className="border-muted-foreground/10 shadow-soft">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl">Auto Conversation Titles</CardTitle>
+          <CardTitle className="text-xl">Títulos Automáticos de Conversación</CardTitle>
           <CardDescription className="text-sm">
-            Automatically generate concise titles for new conversations using AI after the first user message.
+            Genera automáticamente títulos concisos para nuevas conversaciones usando IA después del primer mensaje del usuario.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-3">
             <Switch 
               id="titling-toggle"
-              checked={settings.is_titling_enabled}
-              onCheckedChange={(checked) => setSettings({...settings, is_titling_enabled: checked})}
+              checked={formState.is_titling_enabled}
+              onCheckedChange={(checked) => setFormState({...formState, is_titling_enabled: checked})}
             />
-            <label htmlFor="titling-toggle" className="text-sm font-medium cursor-pointer">Enable Automatic Titling</label>
+            <label htmlFor="titling-toggle" className="text-sm font-medium cursor-pointer">Activar Titulado Automático</label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
             <div className="grid gap-2">
-              <label htmlFor="provider" className="text-sm font-medium">LLM Provider</label>
+              <label htmlFor="provider" className="text-sm font-medium">Proveedor LLM</label>
               <Select 
-                value={settings.llm_provider} 
+                value={formState.llm_provider} 
                 onValueChange={(val) => {
-                  setSettings({...settings, llm_provider: val, llm_model: '', active_cred_id: null})
-                  setAvailableModels([]) // Clear previous models
-                  fetchModels(val)
+                  setFormState({...formState, llm_provider: val, llm_model: '', active_cred_id: null})
                 }}
               >
                 <SelectTrigger id="provider">
-                  <SelectValue placeholder="Select Provider" />
+                  <SelectValue placeholder="Seleccionar Proveedor" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="openai">OpenAI</SelectItem>
@@ -214,14 +122,14 @@ export function AutoTitlesSettings() {
             </div>
 
             <div className="grid gap-2">
-              <label htmlFor="llm-model-select" className="text-sm font-medium">Model</label>
+              <label htmlFor="llm-model-select" className="text-sm font-medium">Modelo</label>
               <Select 
-                value={settings.llm_model || ''} 
-                onValueChange={(val) => setSettings({...settings, llm_model: val})}
+                value={formState.llm_model || ''} 
+                onValueChange={(val) => setFormState({...formState, llm_model: val})}
                 disabled={availableModels.length === 0}
               >
                 <SelectTrigger id="llm-model-select" className="w-full">
-                  <SelectValue placeholder={availableModels.length > 0 ? "Select a model" : "Select a key to list models"} />
+                  <SelectValue placeholder={availableModels.length > 0 ? "Seleccionar un modelo" : "Selecciona una credencial para listar modelos"} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableModels.map(model => (
@@ -234,19 +142,18 @@ export function AutoTitlesSettings() {
             <div className="grid gap-2 md:col-span-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Key className="h-4 w-4" />
-                Active Credential for Titling
+                Credencial Activa para Titulado
               </label>
               <div className="flex gap-2">
                 <Select 
-                  value={filteredCreds.length > 0 ? (settings.active_cred_id || filteredCreds[0].id).toString() : "none"}
+                  value={formState.active_cred_id?.toString() || (filteredCreds.length > 0 ? filteredCreds[0].id.toString() : "none")}
                   onValueChange={(val) => {
-                    setSettings({...settings, active_cred_id: parseInt(val)})
-                    fetchModels(settings.llm_provider, val)
+                    setFormState({...formState, active_cred_id: parseInt(val)})
                   }}
                   disabled={filteredCreds.length === 0}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={filteredCreds.length > 0 ? `${filteredCreds[0].name} (${filteredCreds[0].provider})` : "No credential for this provider"} />
+                    <SelectValue placeholder={filteredCreds.length > 0 ? `${filteredCreds[0].name} (${filteredCreds[0].provider})` : "Sin credencial para este proveedor"} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredCreds.map(c => (
@@ -258,29 +165,26 @@ export function AutoTitlesSettings() {
                   variant="outline" 
                   size="icon" 
                   type="button"
-                  onClick={() => {
-                    const currentId = settings.active_cred_id || (filteredCreds.length > 0 ? filteredCreds[0].id : null);
-                    fetchModels(settings.llm_provider, currentId)
-                  }}
-                  disabled={fetchingModels || !settings.llm_provider}
-                  title="Refresh models"
+                  onClick={() => refetchModels()}
+                  disabled={fetchingModels || !formState.llm_provider}
+                  title="Refrescar modelos"
                 >
                   <RefreshCw className={`h-4 w-4 ${fetchingModels ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
               {filteredCreds.length === 0 && (
                 <p className="text-[10px] text-destructive font-medium italic animate-pulse mt-1">
-                  ⚠️ No keys found for {settings.llm_provider}. Add one in "AI Keys" tab with 'titling' task enabled.
+                  ⚠️ No se encontraron llaves para {formState.llm_provider}. Añade una en la pestaña "Llaves AI" con la tarea 'titling' activada.
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                The first active credential for the selected provider with 'titling' task enabled will be used.
+                Se utilizará la primera credencial activa para el proveedor seleccionado que tenga habilitada la tarea de titulado.
               </p>
             </div>
 
             <div className="grid gap-2 md:col-span-2">
               <div className="flex justify-between items-center">
-                <label htmlFor="prompt" className="text-sm font-medium">Titling Prompt</label>
+                <label htmlFor="prompt" className="text-sm font-medium">Prompt de Titulado</label>
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -288,27 +192,27 @@ export function AutoTitlesSettings() {
                   onClick={handleResetPrompt}
                   className="h-7 text-xs"
                 >
-                  Reset to Default
+                  Restablecer Predeterminado
                 </Button>
               </div>
               <textarea 
                 id="prompt"
-                placeholder="Titling prompt instructions..."
-                value={settings.titling_prompt || ''}
-                onChange={(e) => setSettings({...settings, titling_prompt: e.target.value})}
+                placeholder="Instrucciones para el prompt de titulado..."
+                value={formState.titling_prompt || ''}
+                onChange={(e) => setFormState({...formState, titling_prompt: e.target.value})}
                 className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono 3xl:text-xs"
               />
               <p className="text-xs text-muted-foreground italic">
-                The system automatically appends a fragment of the first significant response to this prompt.
+                El sistema añade automáticamente un fragmento de la primera respuesta significativa a este prompt.
               </p>
 
             </div>
           </div>
 
           <div className="flex justify-end pt-4 border-t border-muted-foreground/10">
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save Configuration
+            <Button onClick={handleSave} disabled={updateMutation.isPending} className="gap-2">
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Guardar Configuración
             </Button>
           </div>
         </CardContent>

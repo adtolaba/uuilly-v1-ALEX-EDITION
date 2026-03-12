@@ -4,7 +4,7 @@
  * See LICENSE.md in the project root for more information.
  */
 
-import React, { useState, useEffect } from "react"
+import React from "react"
 import { Users, Bot, Tag, Activity, ArrowUpRight, TrendingUp, TrendingDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -14,6 +14,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useDashboardStats } from "../../hooks/useDashboardStats"
+
+const StatCard = ({ title, value, icon: Icon, isLoading, visible = true }) => {
+  if (!visible) return null;
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{isLoading ? "..." : value}</div>
+      </CardContent>
+    </Card>
+  );
+};
 
 /**
  * AdminDashboard component that displays system statistics and activity.
@@ -24,97 +40,37 @@ import {
  */
 export function AdminDashboard({ currentUser, isWsConnected }) {
   const isAdmin = currentUser?.role === 'ADMIN';
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalAgents: 0,
-    totalTags: 0
-  })
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      setIsLoading(true)
-      try {
-        const token = localStorage.getItem("access_token")
-        const headers = { Authorization: `Bearer ${token}` }
-        
-        // Conditional fetch based on role
-        if (isAdmin) {
-          const [usersRes, agentsRes, tagsRes] = await Promise.all([
-            fetch("/api/v1/users", { headers }),
-            fetch("/api/v1/agents", { headers }),
-            fetch("/api/v1/tags", { headers })
-          ])
-
-          if (usersRes.ok && agentsRes.ok && tagsRes.ok) {
-            const [users, agents, tags] = await Promise.all([
-              usersRes.json(),
-              agentsRes.json(),
-              tagsRes.json()
-            ])
-            
-            setStats({
-              totalUsers: users.length,
-              totalAgents: agents.length,
-              totalTags: tags.length
-            })
-          }
-        } else {
-          // Supervisors (or others) only see what they can access
-          const usersRes = await fetch("/api/v1/users", { headers })
-          if (usersRes.ok) {
-            const users = await usersRes.json()
-            setStats({
-              totalUsers: users.length,
-              totalAgents: 0, // Restricted
-              totalTags: 0    // Restricted
-            })
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching dashboard stats:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchStats()
-  }, [isAdmin])
+  
+  const { 
+    data: stats = { totalUsers: 0, totalAgents: 0, totalTags: 0 }, 
+    isLoading 
+  } = useDashboardStats(isAdmin, {
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Usuarios</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? "..." : stats.totalUsers}</div>
-          </CardContent>
-        </Card>
-        {isAdmin && (
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Asistentes Activos</CardTitle>
-              <Bot className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{isLoading ? "..." : stats.totalAgents}</div>
-            </CardContent>
-          </Card>
-        )}
-        {isAdmin && (
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Etiquetas Globales</CardTitle>
-              <Tag className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{isLoading ? "..." : stats.totalTags}</div>
-            </CardContent>
-          </Card>
-        )}
+        <StatCard 
+          title="Total de Usuarios" 
+          value={stats.totalUsers} 
+          icon={Users} 
+          isLoading={isLoading} 
+        />
+        <StatCard 
+          title="Asistentes Activos" 
+          value={stats.totalAgents} 
+          icon={Bot} 
+          isLoading={isLoading} 
+          visible={isAdmin}
+        />
+        <StatCard 
+          title="Etiquetas Globales" 
+          value={stats.totalTags} 
+          icon={Tag} 
+          isLoading={isLoading} 
+          visible={isAdmin}
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

@@ -4,7 +4,7 @@
  * See LICENSE.md in the project root for more information.
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useReducer } from "react"
 import {
   Sheet,
   SheetContent,
@@ -31,142 +31,121 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { X, ChevronDown, Tag } from "lucide-react"
+import { X, ChevronDown, Tag, Loader2 } from "lucide-react"
 import { cn, getTagColor } from "@/lib/utils"
 import useUI from "../../hooks/useUI"
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
+import { useApi } from "../../hooks/useApi"
+
+const initialState = {
+  email: "",
+  firstName: "",
+  lastName: "",
+  profilePhotoUrl: "",
+  role: "USER",
+  password: "",
+  tags: [],
+}
+
+function userReducer(state, action) {
+  switch (action.type) {
+    case "SET_FIELD":
+      return { ...state, [action.field]: action.value }
+    case "TOGGLE_TAG":
+      return {
+        ...state,
+        tags: state.tags.includes(action.payload)
+          ? state.tags.filter((t) => t !== action.payload)
+          : [...state.tags, action.payload],
+      }
+    case "REMOVE_TAG":
+      return { ...state, tags: state.tags.filter((t) => t !== action.payload) }
+    case "RESET":
+      return { ...initialState, ...action.payload }
+    default:
+      return state
+  }
+}
+
+function initUserState(user) {
+  if (!user) return initialState
+  return {
+    ...initialState,
+    email: user.email || "",
+    firstName: user.first_name || "",
+    lastName: user.last_name || "",
+    profilePhotoUrl: user.profile_photo_url || "",
+    role: user.role || "USER",
+    tags: user.tags ? user.tags.map((t) => (typeof t === "string" ? t : t.name)) : [],
+  }
+}
 
 /**
  * UserForm component for creating or editing user details.
- * @param {Object} props
- * @param {Object} props.user The user to edit, or null for a new user.
- * @param {boolean} props.open Whether the form sheet is open.
- * @param {function} props.onOpenChange Callback when the open state changes.
- * @param {function} props.onSuccess Callback when the user is successfully saved.
- * @returns {JSX.Element}
+ * Refactored: useReducer + useMutation + TanStack Query.
  */
 export function UserForm({ user, open, onOpenChange, onSuccess, currentUser }) {
   const ui = useUI()
-  const isAdmin = currentUser?.role === 'ADMIN';
-  const isSupervisor = currentUser?.role === 'SUPERVISOR';
-  const [email, setEmail] = useState("")
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState("")
-  const [role, setRole] = useState("USER")
-  const [password, setPassword] = useState("")
-  const [tags, setTags] = useState([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const queryClient = useQueryClient()
+  const { post, put, get } = useApi()
+  const isAdmin = currentUser?.role === "ADMIN"
   
-  const [allGlobalTags, setAllGlobalTags] = useState([])
+  const [state, dispatch] = useReducer(userReducer, user, initUserState)
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchGlobalTags()
-    }
-  }, [isAdmin])
+  // Fetch Tags via React Query
+  const { data: allGlobalTags = [] } = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => get("/api/v1/tags"),
+    enabled: open && isAdmin,
+  })
 
-  const fetchGlobalTags = async () => {
-    try {
-      const token = localStorage.getItem("access_token")
-      const response = await fetch("/api/v1/tags", {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setAllGlobalTags(data)
-      }
-    } catch (error) {
-      console.error("Error fetching global tags:", error)
-    }
-  }
-
-  useEffect(() => {
-    if (user) {
-      setEmail(user.email || "")
-      setFirstName(user.first_name || "")
-      setLastName(user.last_name || "")
-      setProfilePhotoUrl(user.profile_photo_url || "")
-      setRole(user.role || "USER")
-      setPassword("") // Never populate password from existing data
-      setTags(user.tags ? user.tags.map(t => typeof t === 'string' ? t : t.name) : [])
-    } else {
-      setEmail("")
-      setFirstName("")
-      setLastName("")
-      setProfilePhotoUrl("")
-      setRole("USER")
-      setPassword("")
-      setTags([])
-    }
-  }, [user, open])
-
-  const toggleTag = (tagName) => {
-    if (tags.includes(tagName)) {
-      setTags(tags.filter(t => t !== tagName))
-    } else {
-      setTags([...tags, tagName])
-    }
-  }
-
-  const removeTag = (tagToRemove) => {
-    setTags(tags.filter(t => t !== tagToRemove))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    const token = localStorage.getItem("access_token")
-    const method = user ? "PUT" : "POST"
-    const url = user ? `/api/v1/users/${user.id}` : "/api/v1/users"
-
-    const body = {
-      email,
-      first_name: firstName,
-      last_name: lastName,
-      profile_photo_url: profilePhotoUrl,
-      role,
-      tags: tags
-    }
-
-    if (password) {
-      body.password = password
-    }
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      })
-
-      if (response.ok) {
-        ui.toast.success(`User ${email} saved successfully`)
-        onSuccess()
-        onOpenChange(false)
-      } else {
-        const errorData = await response.json()
-        ui.toast.error(errorData.detail || "Error saving user")
-      }
-    } catch (error) {
+  const userMutation = useMutation({
+    mutationFn: async (body) => {
+      const url = user ? `/api/v1/users/${user.id}` : "/api/v1/users"
+      return user ? put(url, body) : post(url, body)
+    },
+    onSuccess: () => {
+      ui.toast.success(`Usuario ${state.email} guardado exitosamente`)
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+      if (onSuccess) onSuccess()
+      onOpenChange(false)
+    },
+    onError: (error) => {
       console.error("Error saving user:", error)
-      ui.toast.error("Connection error")
-    } finally {
-      setIsSubmitting(false)
+      ui.toast.error("Error al guardar el usuario")
     }
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    
+    const body = {
+      email: state.email,
+      first_name: state.firstName,
+      last_name: state.lastName,
+      profile_photo_url: state.profilePhotoUrl,
+      role: state.role,
+      tags: state.tags,
+    }
+
+    if (state.password) {
+      body.password = state.password
+    }
+
+    userMutation.mutate(body)
   }
+
+  const setField = (field) => (value) => dispatch({ type: "SET_FIELD", field, value })
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-[425px] overflow-y-auto custom-scrollbar">
         <form onSubmit={handleSubmit}>
           <SheetHeader>
-            <SheetTitle>{user ? "Edit User" : "Add New User"}</SheetTitle>
+            <SheetTitle>{user ? "Editar Usuario" : "Añadir Nuevo Usuario"}</SheetTitle>
             <SheetDescription className="sr-only">
-              Form to manage user details and tags.
+              Formulario para gestionar detalles de usuario y etiquetas.
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-4 py-4">
@@ -175,84 +154,84 @@ export function UserForm({ user, open, onOpenChange, onSuccess, currentUser }) {
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@example.com"
+                value={state.email}
+                onChange={(e) => setField("email")(e.target.value)}
+                placeholder="juan@ejemplo.com"
                 required
                 autoComplete="off"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <label htmlFor="first_name" className="text-sm font-medium">First Name</label>
+                <label htmlFor="first_name" className="text-sm font-medium">Nombre</label>
                 <Input
                   id="first_name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="John"
+                  value={state.firstName}
+                  onChange={(e) => setField("firstName")(e.target.value)}
+                  placeholder="Juan"
                   autoComplete="off"
                 />
               </div>
               <div className="grid gap-2">
-                <label htmlFor="last_name" className="text-sm font-medium">Last Name</label>
+                <label htmlFor="last_name" className="text-sm font-medium">Apellido</label>
                 <Input
                   id="last_name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Doe"
+                  value={state.lastName}
+                  onChange={(e) => setField("lastName")(e.target.value)}
+                  placeholder="Pérez"
                   autoComplete="off"
                 />
               </div>
             </div>
             <div className="grid gap-2">
-              <label htmlFor="profile_photo_url" className="text-sm font-medium">Profile Photo URL</label>
+              <label htmlFor="profile_photo_url" className="text-sm font-medium">URL de Foto de Perfil</label>
               <Input
                 id="profile_photo_url"
                 type="url"
-                value={profilePhotoUrl}
-                onChange={(e) => setProfilePhotoUrl(e.target.value)}
-                placeholder="https://example.com/photo.jpg"
+                value={state.profilePhotoUrl}
+                onChange={(e) => setField("profilePhotoUrl")(e.target.value)}
+                placeholder="https://ejemplo.com/foto.jpg"
                 autoComplete="off"
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="role" className="text-sm font-medium">Role</label>
+              <label htmlFor="role" className="text-sm font-medium">Rol</label>
               <Select 
-                value={role} 
-                onValueChange={setRole} 
+                value={state.role} 
+                onValueChange={setField("role")} 
                 disabled={!isAdmin}
               >
                 <SelectTrigger id="role">
-                  <SelectValue placeholder="Select role" />
+                  <SelectValue placeholder="Seleccionar rol" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USER">User</SelectItem>
+                  <SelectItem value="USER">Usuario</SelectItem>
                   <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="ADMIN">Administrador</SelectItem>
                 </SelectContent>
               </Select>
               {!isAdmin && (
-                <p className="text-[10px] text-muted-foreground italic">Only Administrators can change user roles.</p>
+                <p className="text-[10px] text-muted-foreground italic">Solo los administradores pueden cambiar roles.</p>
               )}
             </div>
 
             {isAdmin && (
               <div className="grid gap-2">
-                <label htmlFor="password" { ...{ className: "text-sm font-medium" } }>Password (Optional)</label>
+                <label htmlFor="password" { ...{ className: "text-sm font-medium" } }>Contraseña (Opcional)</label>
                 <Input
                   id="password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={user ? "Leave empty to keep current" : "Set password for manual login"}
+                  value={state.password}
+                  onChange={(e) => setField("password")(e.target.value)}
+                  placeholder={user ? "Dejar vacío para mantener actual" : "Establecer contraseña"}
                   autoComplete="new-password"
                 />
-                <p className="text-[10px] text-muted-foreground italic">Users without passwords must use Google OAuth.</p>
+                <p className="text-[10px] text-muted-foreground italic">Usuarios sin contraseña deben usar Google OAuth.</p>
               </div>
             )}
             
             <div className="grid gap-2 relative">
-              <label className="text-sm font-medium">Tags</label>
+              <label className="text-sm font-medium">Etiquetas</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
@@ -261,23 +240,23 @@ export function UserForm({ user, open, onOpenChange, onSuccess, currentUser }) {
                   >
                     <div className="flex items-center gap-2">
                       <Tag className="h-4 w-4" />
-                      <span>Select tags...</span>
+                      <span>Seleccionar etiquetas...</span>
                     </div>
                     <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto custom-scrollbar" align="start">
-                  <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
+                  <DropdownMenuLabel>Etiquetas Disponibles</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {allGlobalTags.length === 0 ? (
-                    <div className="p-2 text-xs text-muted-foreground italic text-center">No tags available</div>
+                    <div className="p-2 text-xs text-muted-foreground italic text-center">No hay etiquetas disponibles</div>
                   ) : (
                     allGlobalTags.map((tag) => (
                       <DropdownMenuCheckboxItem
                         key={tag.id}
-                        checked={tags.includes(tag.name)}
-                        onCheckedChange={() => toggleTag(tag.name)}
-                        onSelect={(e) => e.preventDefault()} // Keep open
+                        checked={state.tags.includes(tag.name)}
+                        onCheckedChange={() => dispatch({ type: "TOGGLE_TAG", payload: tag.name })}
+                        onSelect={(e) => e.preventDefault()}
                       >
                         {tag.name}
                       </DropdownMenuCheckboxItem>
@@ -287,7 +266,7 @@ export function UserForm({ user, open, onOpenChange, onSuccess, currentUser }) {
               </DropdownMenu>
 
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {tags.map((tag) => {
+                {state.tags.map((tag) => {
                   const colors = getTagColor(tag);
                   return (
                     <Badge 
@@ -298,7 +277,7 @@ export function UserForm({ user, open, onOpenChange, onSuccess, currentUser }) {
                       {tag}
                       <button
                         type="button"
-                        onClick={() => removeTag(tag)}
+                        onClick={() => dispatch({ type: "REMOVE_TAG", payload: tag })}
                         className="rounded-full opacity-60 hover:opacity-100 hover:bg-muted p-0.5 transition-all"
                       >
                         <X className="h-3 w-3" />
@@ -306,15 +285,15 @@ export function UserForm({ user, open, onOpenChange, onSuccess, currentUser }) {
                     </Badge>
                   );
                 })}
-                {tags.length === 0 && (
-                  <span className="text-[10px] 3xl:text-xs text-muted-foreground italic">No tags selected</span>
+                {state.tags.length === 0 && (
+                  <span className="text-[10px] 3xl:text-xs text-muted-foreground italic">Sin etiquetas seleccionadas</span>
                 )}
               </div>
             </div>
           </div>
           <SheetFooter className="pt-4 border-t">
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : (user ? "Update User" : "Save User")}
+            <Button type="submit" className="w-full" disabled={userMutation.isPending}>
+              {userMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : (user ? "Actualizar Usuario" : "Guardar Usuario")}
             </Button>
           </SheetFooter>
         </form>
