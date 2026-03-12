@@ -38,10 +38,10 @@ export function AgentCard({ agent, onClick, isSelected }) {
       aria-label={`Select assistant: ${agent.name}`}
       aria-selected={isSelected}
     >
-      <CardHeader className="p-3 3xl:p-4 pb-1 flex-none">
+      <CardHeader className="p-2 3xl:p-2.5 pb-1 flex-none">
         <div className="flex items-start gap-3 3xl:gap-4">
           <div className={cn(
-            "h-8 w-8 3xl:h-10 3xl:w-10 flex items-center justify-center rounded-lg shrink-0 transition-colors text-lg 3xl:text-2xl",
+            "h-8 w-8 3xl:h-9 3xl:w-9 flex items-center justify-center rounded-lg shrink-0 transition-colors text-lg 3xl:text-xl",
             isSelected
               ? "bg-primary/10 text-primary"
               : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
@@ -52,9 +52,9 @@ export function AgentCard({ agent, onClick, isSelected }) {
             <CardTitle className="text-sm 3xl:text-base font-bold truncate group-hover:text-primary transition-colors">
               {agent.name}
             </CardTitle>
-            <div className="min-h-[2.5em] 3xl:min-h-[3em]">
+            <div className="min-h-[2em] 3xl:min-h-[2.2em]">
               {agent.description && (
-                <CardDescription className="text-[11px] 3xl:text-xs line-clamp-2 leading-relaxed text-muted-foreground/80">
+                <CardDescription className="text-[11px] 3xl:text-xs line-clamp-2 leading-snug text-muted-foreground/80">
                   {agent.description}
                 </CardDescription>
               )}
@@ -66,7 +66,7 @@ export function AgentCard({ agent, onClick, isSelected }) {
       {/* Spacer to push content to bottom */}
       <div className="flex-grow" />
 
-      <CardContent className="p-3 3xl:p-4 pt-1 3xl:pt-1 flex-none mt-auto">
+      <CardContent className="p-2 3xl:p-2.5 pt-1.5 3xl:pt-0.5 flex-none mt-auto">
         <div className="flex items-center justify-between text-[9px] 3xl:text-[11px] font-bold uppercase tracking-widest">
           <div className="flex items-center gap-1 3xl:gap-1.5">
             {primaryTag && (

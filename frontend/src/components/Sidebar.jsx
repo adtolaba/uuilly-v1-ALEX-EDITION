@@ -14,6 +14,8 @@ import useUI from "../hooks/useUI"
 import { formatToMarkdown, formatToText, triggerDownload } from "../lib/exportUtils"
 import { SidebarHeader } from "./sidebar/SidebarHeader"
 import { ConversationList } from "./sidebar/ConversationList"
+import { UserDropdown } from "./UserDropdown"
+import logoSvg from "../assets/branding/avatar_logo.svg"
 
 const initialState = {
   searchQuery: "",
@@ -46,6 +48,8 @@ export function Sidebar({
   isSidebarOpen = true,
   onToggleSidebar,
   isAtWelcomeScreen = false,
+  onLogout,
+  onAdminClick,
 }) {
   const ui = useUI()
   const [state, dispatch] = useReducer(sidebarReducer, initialState)
@@ -187,15 +191,18 @@ export function Sidebar({
         )}
         aria-label="Collapsed Sidebar"
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hover:bg-accent text-muted-foreground"
-          onClick={onToggleSidebar}
-          aria-label="Expand sidebar"
-        >
-          <PanelLeftOpen className="h-5 w-5" />
-        </Button>
+        <div className="flex flex-col items-center gap-4">
+          <img src={logoSvg} alt="Alex" className="h-8 w-auto mb-2" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hover:bg-accent text-muted-foreground"
+            onClick={onToggleSidebar}
+            aria-label="Expand sidebar"
+          >
+            <PanelLeftOpen className="h-5 w-5" />
+          </Button>
+        </div>
         <Button
           variant="outline"
           size="icon"
@@ -242,6 +249,25 @@ export function Sidebar({
         handleDeleteConversation={handleDeleteConversation}
         downloadingId={state.downloadingId}
       />
+
+      {/* Sidebar Footer with User Menu (Visible only on Mobile) */}
+      <div className="p-4 border-t md:hidden shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col min-w-0 pr-2">
+            <p className="text-sm font-bold truncate text-foreground">
+              {user.firstName || user.name}
+            </p>
+            <p className="text-[10px] text-muted-foreground truncate">
+              {user.email}
+            </p>
+          </div>
+          <UserDropdown 
+            user={user} 
+            onLogout={onLogout} 
+            onAdminClick={onAdminClick}
+          />
+        </div>
+      </div>
     </nav>
   )
 }

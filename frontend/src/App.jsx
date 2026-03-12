@@ -32,7 +32,7 @@ export function App() {
   const [currentView, setCurrentView] = useState('chat') // 'chat' or 'admin'
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState("")
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768)
   const [selectedFiles, setSelectedFiles] = useState([])
   const [isDragOver, setIsDragOver] = useState(false)
   const wsInstanceRef = useRef(null);
@@ -849,8 +849,8 @@ export function App() {
               <div className="flex h-screen w-full overflow-hidden bg-background font-sans text-sm 3xl:text-base">
                 {/* Sidebar Wrapper */}
                 <div className={cn(
-                  "h-full flex-col transition-all duration-300 ease-in-out overflow-hidden",
-                  isSidebarOpen ? "w-sidebar" : "w-0 md:w-16"
+                  "fixed inset-y-0 left-0 z-50 md:relative md:flex h-full flex-col transition-all duration-300 ease-in-out overflow-hidden shadow-2xl md:shadow-none bg-background",
+                  isSidebarOpen ? "translate-x-0 w-[280px] md:w-sidebar" : "-translate-x-full md:translate-x-0 w-0 md:w-16"
                 )}>
                   <Sidebar 
                     className="shrink-0 h-full w-full" 
@@ -860,8 +860,19 @@ export function App() {
                     isSidebarOpen={isSidebarOpen}
                     onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                     isAtWelcomeScreen={isAtWelcomeScreen && currentView === 'chat'}
+                    onLogout={handleLogout}
+                    onAdminClick={() => setCurrentView('admin')}
                   />
                 </div>
+
+                {/* Mobile Backdrop Overlay */}
+                {isSidebarOpen && (
+                  <div 
+                    className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 md:hidden animate-in fade-in duration-300" 
+                    onClick={() => setIsSidebarOpen(false)}
+                    aria-hidden="true"
+                  />
+                )}
                 
                 {/* Main Content Area */}
                 <main 
@@ -873,30 +884,21 @@ export function App() {
                   onDrop={handleDrop}
                   onPaste={handlePaste}
                 >
-                  {/* Drag & Drop Overlay */}
-                  {isDragOver && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/20 backdrop-blur-sm border-2 border-dashed border-primary text-primary-foreground pointer-events-none">
-                      <div className="flex flex-col items-center gap-4 text-2xl font-semibold">
-                        <UploadCloud className="h-16 w-16" />
-                        ¡Suelta tus archivos aquí!
-                      </div>
-                    </div>
-                  )}
+                  {/* Drag & Drop Overlay ... (omitted) */}
 
                   {/* Top Bar Controls - Dedicated space to prevent invasion */}
                   <header className="h-14 3xl:h-16 shrink-0 flex items-center justify-between px-4 3xl:px-6 z-20">
                     <div className="flex items-center gap-3 3xl:gap-4">
-                      {!isSidebarOpen && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => setIsSidebarOpen(true)} 
-                          className="md:hidden"
-                          aria-label="Expand sidebar"
-                        >
-                          <Menu className="h-5 w-5 3xl:h-6 3xl:w-6" />
-                        </Button>
-                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                        className="md:hidden"
+                        aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+                        data-testid="mobile-hamburger"
+                      >
+                        <Menu className="h-5 w-5 3xl:h-6 3xl:w-6" />
+                      </Button>
                       
                       {/* Active Agent Indicator */}
                       {!isAtWelcomeScreen && activeAgentName && (

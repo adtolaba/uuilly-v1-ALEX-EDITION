@@ -16,21 +16,21 @@ import { useAgents } from "../hooks/useAgents"
 
 const WelcomeHeader = ({ user, isManyAgents, searchQuery, setSearchQuery, integrated = false }) => (
   <div className={cn(
-    "flex flex-col items-center space-y-4 3xl:space-y-6",
-    integrated ? "mb-6 3xl:mb-8" : "mb-6 3xl:mb-8 shrink-0"
+    "flex flex-col items-center space-y-3 3xl:space-y-4",
+    integrated ? "mb-4 3xl:mb-6" : "mb-4 3xl:mb-6 shrink-0"
   )}>
     <div className="flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-700">
       <img 
         src={logoSvg} 
         alt="Alex Branding" 
-        className="h-20 md:h-28 3xl:h-36 w-auto mb-4 drop-shadow-lg"
+        className="h-16 md:h-24 3xl:h-32 w-auto mb-2.5 drop-shadow-lg"
       />
       <div className="text-center" id="welcome-title">
-        <h2 className="text-2xl md:text-3xl 3xl:text-4xl font-bold text-white flex items-center justify-center gap-2 transition-all">
+        <h2 className="text-xl md:text-2xl 3xl:text-3xl font-bold text-white flex items-center justify-center gap-2 transition-all">
           Hola, {user.firstName || user.name}
-          <img src={fireSvg} alt="fire" className="h-6 w-6 md:h-8 md:w-8 animate-pulse" />
+          <img src={fireSvg} alt="fire" className="h-5 w-5 md:h-7 md:w-7 animate-pulse" />
         </h2>
-        <p className="text-primary text-[11px] 3xl:text-xs font-bold uppercase tracking-wider mt-2">
+        <p className="text-primary text-[10px] 3xl:text-xs font-bold uppercase tracking-wider mt-1.5">
           Selecciona un asistente para comenzar una nueva conversación
         </p>
       </div>
@@ -126,14 +126,14 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
             </Card>
           ) : (
             <div 
-              className="flex flex-wrap justify-center gap-6 w-full max-w-5xl 3xl:max-w-7xl mx-auto"
+              className="flex flex-wrap justify-center gap-4 3xl:gap-6 w-full max-w-5xl 3xl:max-w-7xl mx-auto"
               role="list"
               aria-label="Available AI assistants"
             >
               {filteredAgents.map(agent => (
                 <div 
                   key={agent.id}
-                  className="flex w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] max-w-[320px] 3xl:max-w-[380px] shrink-0"
+                  className="flex w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] max-w-[320px] 3xl:max-w-[380px] shrink-0"
                 >
                   <AgentCard 
                     agent={agent} 
