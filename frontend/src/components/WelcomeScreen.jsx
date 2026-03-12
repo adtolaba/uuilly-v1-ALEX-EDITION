@@ -100,7 +100,7 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className={cn(
           "min-h-full flex flex-col items-center p-4",
-          !isManyAgents && "justify-center pb-48 3xl:pb-64"
+          !isManyAgents && "justify-center"
         )}>
           {/* Integrated Header Section (if few agents) */}
           {!isManyAgents && (

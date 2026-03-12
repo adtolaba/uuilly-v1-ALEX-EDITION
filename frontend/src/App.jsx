@@ -929,8 +929,8 @@ export function App() {
                     ) : (
 
                       <div className={cn(
-                        "flex-1 overflow-y-auto custom-scrollbar",
-                        !isAtWelcomeScreen && "pb-10"
+                        "flex-1 flex flex-col min-h-0",
+                        !isAtWelcomeScreen ? "overflow-y-auto custom-scrollbar pb-10" : "overflow-hidden"
                       )}>
                         {isAtWelcomeScreen ? (
                           <div className="h-full flex items-center justify-center">
