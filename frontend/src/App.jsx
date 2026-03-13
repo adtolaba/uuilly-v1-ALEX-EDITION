@@ -935,7 +935,7 @@ export function App() {
                         !isAtWelcomeScreen ? "overflow-y-auto custom-scrollbar pb-10" : "overflow-hidden"
                       )}>
                         {isAtWelcomeScreen ? (
-                          <div className="h-full flex items-center justify-center">
+                          <div className="h-full flex items-start justify-center">
                             <WelcomeScreen user={currentUser} onSelectAgent={handleSelectAgent} selectedAgentId={selectedAgentId} />
                           </div>
                         ) : isChatHistoryLoading ? (

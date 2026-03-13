@@ -17,7 +17,7 @@ import { useAgents } from "../hooks/useAgents"
 const WelcomeHeader = ({ user, isManyAgents, searchQuery, setSearchQuery, integrated = false }) => (
   <div className={cn(
     "flex flex-col items-center space-y-3 3xl:space-y-4",
-    integrated ? "mb-4 3xl:mb-6" : "mb-4 3xl:mb-6 shrink-0"
+    integrated ? "mb-4 3xl:mb-6" : "mb-1.5 3xl:mb-3 shrink-0"
   )}>
     <div className="flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-700">
       <img 
@@ -85,7 +85,13 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
   const isManyAgents = agents.length > 9;
 
   return (
-    <main className="flex-1 flex flex-col h-full w-full py-0 overflow-hidden" aria-labelledby="welcome-title">
+    <main 
+      className={cn(
+        "flex-1 flex flex-col h-full w-full overflow-hidden",
+        isManyAgents ? "pt-1 md:pt-1.5 3xl:pt-2" : "pt-6 md:pt-10 3xl:pt-16"
+      )} 
+      aria-labelledby="welcome-title"
+    >
       {/* Anchored Header Section (if many agents) */}
       {isManyAgents && (
         <WelcomeHeader 
@@ -99,8 +105,8 @@ export function WelcomeScreen({ user, onSelectAgent, selectedAgentId }) {
       {/* Scrollable Agent Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className={cn(
-          "min-h-full flex flex-col items-center p-4",
-          !isManyAgents && "justify-center"
+          "min-h-full flex flex-col items-center px-4 pb-4",
+          isManyAgents ? "pt-1" : "pt-4"
         )}>
           {/* Integrated Header Section (if few agents) */}
           {!isManyAgents && (

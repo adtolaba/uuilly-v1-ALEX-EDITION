@@ -88,8 +88,8 @@ function initAgentState(agent) {
     agentAuthStrategy: agent.agent_auth_strategy || "NONE",
     agentAuthHeaderName: agent.agent_auth_header_name || "X-Api-Key",
     agentAuthSecret: agent.agent_auth_secret || "",
-    memory_enabled: agent.memory_enabled || false,
-    memory_scope: agent.memory_scope || "INDIVIDUAL",
+    memoryEnabled: agent.memory_enabled || false,
+    memoryScope: agent.memory_scope || "INDIVIDUAL",
     tags: agent.tags ? agent.tags.map((t) => (typeof t === "string" ? t : t.name)) : [],
   }
 }
