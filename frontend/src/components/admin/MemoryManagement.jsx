@@ -39,6 +39,7 @@ import { useAgents } from "../../hooks/useAgents"
 import { useUsers } from "../../hooks/useUsers"
 import { useSettings, useSettingsMutation, useModels } from "../../hooks/useSettings"
 import { useAICredentials } from "../../hooks/useAICredentials"
+import { useLLMConfig } from "../../hooks/useLLMConfig"
 
 const initialState = {
   searchTerm: "",
@@ -106,16 +107,28 @@ export function MemoryManagement({ currentUser }) {
   const { data: settings, isLoading: loadingSettings } = useSettings();
   const { data: aicredentials = [] } = useAICredentials();
   
-  // Models Query (for Admin)
-  const provider = settings?.llm_provider;
-  const filteredExtractionCreds = aicredentials.filter(c => {
-    const tasks = typeof c.tasks === 'string' ? JSON.parse(c.tasks) : c.tasks
-    return tasks.includes('extraction') && c.provider === normalizeProvider(provider)
+  // LLM Config logic using the new shared hook
+  const llmConfig = useLLMConfig({
+    initialProvider: settings?.llm_provider,
+    initialCredentialId: settings?.active_extraction_cred_id,
+    initialModel: settings?.memory_extraction_model,
+    credentials: aicredentials,
+    task: 'extraction'
   });
-  const activeCredId = settings?.active_extraction_cred_id || (filteredExtractionCreds.length > 0 ? filteredExtractionCreds[0].id : null);
-  
-  const { data: availableModels = [], isLoading: fetchingModels, refetch: refetchModels } = useModels(provider, activeCredId);
 
+  // Sync with settings when they load or update
+  const [hasSynced, setHasSynced] = React.useState(false);
+  useEffect(() => {
+    if (settings && !loadingSettings && !hasSynced) {
+      llmConfig.sync({
+        provider: settings.llm_provider,
+        credentialId: settings.active_extraction_cred_id,
+        model: settings.memory_extraction_model
+      });
+      setHasSynced(true);
+    }
+  }, [settings, loadingSettings, hasSynced]);
+  
   // Mutations
   const { 
     createMutation, 
@@ -140,8 +153,14 @@ export function MemoryManagement({ currentUser }) {
   };
 
   const handleSaveSettings = () => {
-    updateSettingsMutation.mutate(settings, {
+    updateSettingsMutation.mutate({
+      ...settings,
+      llm_provider: llmConfig.provider,
+      active_extraction_cred_id: llmConfig.credentialId,
+      memory_extraction_model: llmConfig.model
+    }, {
       onSuccess: () => {
+        setHasSynced(false); // Force re-sync with new settings
         toast.success('Configuración de extracción guardada');
         dispatch({ type: 'SET_FIELD', field: 'accordionValue', value: "" });
       }
@@ -242,10 +261,10 @@ export function MemoryManagement({ currentUser }) {
               </div>
             </AccordionTrigger>
             <AccordionContent className="pt-2 pb-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground/70">Proveedor de Extracción</label>
-                  <Select value={settings?.llm_provider || 'openai'} onValueChange={(val) => updateSettingsMutation.mutate({...settings, llm_provider: val, memory_extraction_model: '', active_extraction_cred_id: null})}>
+                  <Select value={llmConfig.provider || 'openai'} onValueChange={llmConfig.setProvider}>
                     <SelectTrigger className="h-9 text-xs bg-background rounded-lg border-muted-foreground/10"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="openai">OpenAI</SelectItem>
@@ -254,14 +273,48 @@ export function MemoryManagement({ currentUser }) {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground/70">Credencial Activa</label>
+                  <Select 
+                    value={llmConfig.credentialId?.toString() || "none"} 
+                    onValueChange={llmConfig.setCredentialId}
+                    disabled={llmConfig.filteredCredentials.length === 0}
+                  >
+                    <SelectTrigger className="h-9 text-xs bg-background rounded-lg border-muted-foreground/10">
+                      <SelectValue placeholder="Seleccionar credencial..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {llmConfig.filteredCredentials.length > 0 ? (
+                        llmConfig.filteredCredentials.map(c => (
+                          <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="none" disabled>Sin credenciales para este proveedor</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {llmConfig.filteredCredentials.length === 0 && (
+                    <p className="text-[10px] text-destructive font-medium italic animate-pulse mt-1">
+                      ⚠️ No se encontraron llaves para {llmConfig.provider}. Añade una en la pestaña "Llaves AI" con la tarea 'extraction' activada.
+                    </p>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground/70">Modelo de Extracción</label>
-                  <Select value={settings?.memory_extraction_model || ''} onValueChange={(val) => updateSettingsMutation.mutate({...settings, memory_extraction_model: val})} disabled={availableModels.length === 0}>
-                    <SelectTrigger className="h-9 text-xs bg-background rounded-lg border-muted-foreground/10"><SelectValue placeholder="Seleccionar modelo..." /></SelectTrigger>
-                    <SelectContent>{availableModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  <Select value={llmConfig.model || ''} onValueChange={llmConfig.setModel} disabled={llmConfig.availableModels.length === 0}>
+                    <SelectTrigger className="h-9 text-xs bg-background rounded-lg border-muted-foreground/10">
+                      <SelectValue placeholder={llmConfig.fetchingModels ? "Cargando modelos..." : "Seleccionar modelo..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {llmConfig.availableModels.map(m => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                 </div>
-                <div className="md:col-span-2 space-y-2">
+                <div className="md:col-span-2 lg:col-span-3 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-medium text-muted-foreground/70">Prompt de Extracción</label>
                     <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={handleResetPrompt}>Restablecer predeterminado</Button>

@@ -161,6 +161,7 @@ class SystemSettingsBase(BaseModel):
     llm_model: Optional[str] = None
     llm_api_key: Optional[str] = None
     titling_prompt: Optional[str] = None
+    active_cred_id: Optional[int] = None
     memory_extraction_model: Optional[str] = None
     memory_extraction_prompt: Optional[str] = None
     active_extraction_cred_id: Optional[int] = None
@@ -171,9 +172,14 @@ class SystemSettingsUpdate(BaseModel):
     llm_model: Optional[str] = None
     llm_api_key: Optional[str] = None
     titling_prompt: Optional[str] = None
+    active_cred_id: Optional[int] = None
+    memory_extraction_model: Optional[str] = None
+    memory_extraction_prompt: Optional[str] = None
+    active_extraction_cred_id: Optional[int] = None
 
 class SystemSettings(SystemSettingsBase):
     id: int
+    active_cred_id: Optional[int] = None
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 

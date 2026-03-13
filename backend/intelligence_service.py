@@ -61,7 +61,29 @@ class IntelligenceService:
 
     async def generate_title(self, user_message: str, agent_response: str, custom_prompt: Optional[str] = None) -> Optional[str]:
         """Generates a title using centralized credentials."""
-        cred = await self.get_active_credential("titling")
+        # 1. Get Settings
+        from services import SettingsService
+        settings_service = SettingsService(self.prisma)
+        settings = await settings_service.get_settings()
+
+        # 2. Get Credential (Try specific first, then fallback to general)
+        cred = None
+        active_cred_id = getattr(settings, "active_cred_id", None)
+        if active_cred_id:
+            db_cred = await self.prisma.aicredentials.find_unique(where={"id": active_cred_id})
+            if db_cred and db_cred.is_active:
+                decrypted_key = security.decrypt_secret(db_cred.api_key)
+                cred = {
+                    "provider": db_cred.provider,
+                    "api_key": decrypted_key,
+                    "model": settings.llm_model
+                }
+
+        if not cred:
+            cred = await self.get_active_credential("titling")
+            if cred and settings.llm_model:
+                cred["model"] = settings.llm_model
+        
         if not cred:
             return None
 

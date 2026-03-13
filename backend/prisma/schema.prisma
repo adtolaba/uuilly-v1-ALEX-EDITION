@@ -155,6 +155,7 @@ model SystemSettings {
   llm_model               String?  @db.VarChar(100)
   llm_api_key             String?  @db.Text
   titling_prompt          String?  @db.Text
+  active_cred_id          Int?
   
   // New: Memory Extraction Settings
   memory_extraction_model  String?  @db.VarChar(100)

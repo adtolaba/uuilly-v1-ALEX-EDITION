@@ -14,6 +14,7 @@ import useUI from "@/hooks/useUI"
 import { normalizeProvider } from "@/lib/utils"
 import { useSettings, useSettingsMutation, useModels } from "../../hooks/useSettings"
 import { useAICredentials } from "../../hooks/useAICredentials"
+import { useLLMConfig } from "../../hooks/useLLMConfig"
 
 /**
  * AutoTitlesSettings component for managing automatic conversation titling.
@@ -26,30 +27,44 @@ export function AutoTitlesSettings() {
   const { data: settings, isLoading: loadingSettings } = useSettings();
   const { data: aicredentials = [], isLoading: loadingCreds } = useAICredentials();
   
-  // Local state for form (initialized from settings in useEffect)
-  const [formState, setFormState] = useState(null);
+  // LLM Config logic using the new shared hook
+  const llmConfig = useLLMConfig({
+    initialProvider: settings?.llm_provider,
+    initialCredentialId: settings?.active_cred_id,
+    initialModel: settings?.llm_model,
+    credentials: aicredentials,
+    task: 'titling'
+  });
 
+  // Sync with settings when they load or update
+  const [formState, setFormState] = useState(null);
+  const [hasSynced, setHasSynced] = useState(false);
   useEffect(() => {
     if (settings && !formState) {
       setFormState(settings);
     }
-  }, [settings, formState]);
-
-  // Models Query
-  const provider = formState?.llm_provider;
-  const targetCredId = formState?.active_cred_id || null;
-  const { 
-    data: availableModels = [], 
-    isLoading: fetchingModels,
-    refetch: refetchModels 
-  } = useModels(provider, targetCredId);
+    if (settings && !hasSynced && !loadingSettings) {
+      llmConfig.sync({
+        provider: settings.llm_provider,
+        credentialId: settings.active_cred_id,
+        model: settings.llm_model
+      });
+      setHasSynced(true);
+    }
+  }, [settings, formState, hasSynced, loadingSettings]);
 
   // Mutations
   const { updateMutation, resetPromptMutation } = useSettingsMutation();
 
   const handleSave = () => {
-    updateMutation.mutate(formState, {
+    updateMutation.mutate({
+      ...formState,
+      llm_provider: llmConfig.provider,
+      active_cred_id: llmConfig.credentialId,
+      llm_model: llmConfig.model
+    }, {
       onSuccess: (updated) => {
+        setHasSynced(false); // Force re-sync with new settings
         setFormState(updated);
         toast.success('Configuración guardada exitosamente');
       },
@@ -105,10 +120,8 @@ export function AutoTitlesSettings() {
             <div className="grid gap-2">
               <label htmlFor="provider" className="text-sm font-medium">Proveedor LLM</label>
               <Select 
-                value={formState.llm_provider} 
-                onValueChange={(val) => {
-                  setFormState({...formState, llm_provider: val, llm_model: '', active_cred_id: null})
-                }}
+                value={llmConfig.provider || 'openai'} 
+                onValueChange={llmConfig.setProvider}
               >
                 <SelectTrigger id="provider">
                   <SelectValue placeholder="Seleccionar Proveedor" />
@@ -124,15 +137,15 @@ export function AutoTitlesSettings() {
             <div className="grid gap-2">
               <label htmlFor="llm-model-select" className="text-sm font-medium">Modelo</label>
               <Select 
-                value={formState.llm_model || ''} 
-                onValueChange={(val) => setFormState({...formState, llm_model: val})}
-                disabled={availableModels.length === 0}
+                value={llmConfig.model || ''} 
+                onValueChange={llmConfig.setModel}
+                disabled={llmConfig.availableModels.length === 0}
               >
                 <SelectTrigger id="llm-model-select" className="w-full">
-                  <SelectValue placeholder={availableModels.length > 0 ? "Seleccionar un modelo" : "Selecciona una credencial para listar modelos"} />
+                  <SelectValue placeholder={llmConfig.availableModels.length > 0 ? "Seleccionar un modelo" : "Selecciona una credencial para listar modelos"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableModels.map(model => (
+                  {llmConfig.availableModels.map(model => (
                     <SelectItem key={model} value={model}>{model}</SelectItem>
                   ))}
                 </SelectContent>
@@ -146,17 +159,15 @@ export function AutoTitlesSettings() {
               </label>
               <div className="flex gap-2">
                 <Select 
-                  value={formState.active_cred_id?.toString() || (filteredCreds.length > 0 ? filteredCreds[0].id.toString() : "none")}
-                  onValueChange={(val) => {
-                    setFormState({...formState, active_cred_id: parseInt(val)})
-                  }}
-                  disabled={filteredCreds.length === 0}
+                  value={llmConfig.credentialId?.toString() || "none"}
+                  onValueChange={llmConfig.setCredentialId}
+                  disabled={llmConfig.filteredCredentials.length === 0}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={filteredCreds.length > 0 ? `${filteredCreds[0].name} (${filteredCreds[0].provider})` : "Sin credencial para este proveedor"} />
+                    <SelectValue placeholder={llmConfig.filteredCredentials.length > 0 ? "Seleccionar credencial..." : "Sin credencial para este proveedor"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredCreds.map(c => (
+                    {llmConfig.filteredCredentials.map(c => (
                       <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -165,16 +176,16 @@ export function AutoTitlesSettings() {
                   variant="outline" 
                   size="icon" 
                   type="button"
-                  onClick={() => refetchModels()}
-                  disabled={fetchingModels || !formState.llm_provider}
+                  onClick={() => llmConfig.refetchModels()}
+                  disabled={llmConfig.fetchingModels || !llmConfig.provider}
                   title="Refrescar modelos"
                 >
-                  <RefreshCw className={`h-4 w-4 ${fetchingModels ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 ${llmConfig.fetchingModels ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
-              {filteredCreds.length === 0 && (
+              {llmConfig.filteredCredentials.length === 0 && (
                 <p className="text-[10px] text-destructive font-medium italic animate-pulse mt-1">
-                  ⚠️ No se encontraron llaves para {formState.llm_provider}. Añade una en la pestaña "Llaves AI" con la tarea 'titling' activada.
+                  ⚠️ No se encontraron llaves para {llmConfig.provider}. Añade una en la pestaña "Llaves AI" con la tarea 'titling' activada.
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-1">

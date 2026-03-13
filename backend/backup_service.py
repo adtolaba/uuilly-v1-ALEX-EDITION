@@ -147,6 +147,18 @@ class BackupService:
                     
                     if backup.data.system_settings:
                         s_data = backup.data.system_settings
+                        # SANITIZE: Remove internal keys that should not be overwritten directly
+                        s_data.pop("id", None)
+                        s_data.pop("updated_at", None)
+
+                        # Validate active credentials exist in the new DB before linking
+                        # If IDs don't match, we set to None to avoid foreign key/logic issues
+                        for cred_key in ["active_cred_id", "active_extraction_cred_id"]:
+                            if s_data.get(cred_key):
+                                exists = await transaction.aicredentials.find_unique(where={"id": s_data[cred_key]})
+                                if not exists:
+                                    s_data[cred_key] = None
+
                         # System settings always overwrite because there is only one record (ID=1)
                         if overwrite:
                             await transaction.systemsettings.upsert(
@@ -298,6 +310,7 @@ class BackupService:
                         "llm_model": None,
                         "llm_api_key": None,
                         "titling_prompt": None,
+                        "active_cred_id": None,
                         "memory_extraction_model": None,
                         "memory_extraction_prompt": None,
                         "active_extraction_cred_id": None
