@@ -177,6 +177,8 @@ services:
       - DATABASE_NAME=${FLOWISE_DB_NAME:-flowise_db}
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
+      - HTTP_SECURITY_CHECK=${HTTP_SECURITY_CHECK:-false}
+      - HTTP_DENY_LIST=${HTTP_DENY_LIST:-}
     volumes:
       - flowise_data:/root/.flowise
     healthcheck:
@@ -209,6 +211,8 @@ services:
       - DATABASE_NAME=${FLOWISE_DB_NAME:-flowise_db}
       - DATABASE_USER=${DB_USER:-postgres}
       - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
+      - HTTP_SECURITY_CHECK=${HTTP_SECURITY_CHECK:-false}
+      - HTTP_DENY_LIST=${HTTP_DENY_LIST:-}
     volumes:
       - flowise_data:/root/.flowise
     healthcheck:
