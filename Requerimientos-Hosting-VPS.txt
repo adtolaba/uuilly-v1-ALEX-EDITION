@@ -1,3 +1,14 @@
+  Requerimientos Mínimos (Para que funcione estable)
+  Este perfil permite ejecutar todos los servicios, pero con poca capacidad de escalado simultáneo en workflows pesados
+  de n8n o Flowise.
+   * RAM: 8 GB. (Aunque el consumo base es menor, el proceso de build de Docker y el arranque de n8n/Flowise requieren
+     picos de memoria. Se recomienda activar 2GB de SWAP).
+   * CPU: 4 vCPUs. (Esencial para manejar los healthchecks concurrentes y los workers de IA).
+   * Almacenamiento: 50 GB SSD. (El sistema base + imágenes de Docker ocupan ~15GB; el resto es para la base de datos y
+     archivos adjuntos).
+   * S.O.: Ubuntu 22.04 LTS o 24.04 LTS (Optimizado para Docker).
+
+
   Requerimientos Recomendados (Producción Fluida)
   Para un uso intensivo de agentes, múltiples usuarios concurrentes y workflows complejos.
    * RAM: 16 GB. (Permite que n8n y Flowise procesen datos pesados sin riesgo de OOM Out Of Memory y deja margen al
