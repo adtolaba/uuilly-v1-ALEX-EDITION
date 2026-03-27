@@ -41,7 +41,6 @@ services:
       args:
         DATABASE_URL: ${DATABASE_URL}
     container_name: uuilly-backend
-    working_dir: /app
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@pgbouncer:6432/${UUILLY_DB_NAME:-uuilly_db}
       PYTHONPATH: /app
