@@ -22,7 +22,6 @@ RUN npm install -g prisma
 FROM base AS builder
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN prisma generate
 
 # Development stage (can be used for hot-reload and testing)
 FROM base AS development
