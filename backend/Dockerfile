@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
+RUN apt-get update && apt-get install -y nodejs npm
+RUN npm install -g prisma
 # Builder stage for dependencies
 FROM base AS builder
 COPY requirements.txt .
